@@ -132,7 +132,12 @@ def get_appropriate_logo(height):
     """
     Determina qual versão da logo usar baseado na altura do vídeo.
     """
-    logos = {720: "720 overlay.png", 1080: "1080 overlay.png"}
+    # Logos ficam em uma pasta 'assets' no mesmo diretório do script
+    assets_path = Path(__file__).parent / "assets"
+    logos = {
+        720: assets_path / "720 overlay.png",
+        1080: assets_path / "1080 overlay.png"
+    }
 
     # Encontra a resolução mais próxima
     closest_resolution = min(logos.keys(), key=lambda x: abs(x - height))
@@ -173,8 +178,7 @@ def burn_subtitle_and_logo(input_folder, output_folder):
     logo_file = get_appropriate_logo(height)
 
     # Verifica se o arquivo da logo existe
-    logo_path = Path(logo_file)
-    if not logo_path.exists():
+    if not logo_file.exists():
         console.print(
             f"[bold red]❌ Erro:[/] Arquivo de logo não encontrado: {logo_file}"
         )
@@ -200,7 +204,7 @@ def burn_subtitle_and_logo(input_folder, output_folder):
         "-i",
         str(video_file),
         "-i",
-        str(logo_path),
+        str(logo_file),
         "-filter_complex",
         filter_complex,
         "-map",
@@ -269,7 +273,6 @@ def burn_subtitle_and_logo(input_folder, output_folder):
         return False
 
 
-# Atualiza a função process_all_folders para usar a nova função
 def process_all_folders(base_folder, output_base):
     """
     Processa todas as pastas dentro da pasta base.
@@ -320,7 +323,9 @@ if __name__ == "__main__":
         )
     )
 
-    base_folder = "C:/Users/elian/Downloads/FILMES"
-    output_base = "C:/Users/elian/Vídeos/FILMES"
+    # Usa caminhos relativos para as pastas de entrada e saída
+    script_dir = Path(__file__).parent
+    base_folder = script_dir / "input"
+    output_base = script_dir / "output"
 
     process_all_folders(base_folder, output_base)

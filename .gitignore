@@ -1,0 +1,63 @@
+# Arquivos de saída do processamento
+output/
+
+# Arquivos de vídeo e legendas
+*.mp4
+*.mkv
+*.avi
+*.srt
+*.ass
+*.ssa
+
+# Arquivos Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Ambientes virtuais
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs e editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs e arquivos temporários
+*.log
+temp/
+tmp/
+.DS_Store
+Thumbs.db
+
+# Exceções - arquivos que devem ser mantidos
+!assets/720 overlay.png
+!assets/1080 overlay.png
+!input/
+!output/
