@@ -21,7 +21,6 @@ from rich.live import Live
 
 # 1. Inicialização e Configuração
 console = Console()
-
 # 2. Funções de Utilidade para Tempo
 def parse_time(time_str):
     """
@@ -112,6 +111,7 @@ def get_video_duration(video_path):
 def find_video_and_subtitle(folder):
     """
     Encontra o arquivo de vídeo e legenda em uma pasta.
+    Agora retorna o vídeo mesmo se não encontrar legenda.
     """
     video_extensions = (".mp4", ".mkv", ".avi")
     subtitle_extensions = (".srt", ".ass", ".ssa")
@@ -136,8 +136,10 @@ def find_video_and_subtitle(folder):
 
     console.print(table)
 
-    if not video_file or not subtitle_file:
-        console.print("[bold red]⚠️ Aviso:[/] Vídeo ou legenda não encontrados!")
+    if not video_file:
+        console.print("[bold red]⚠️ Aviso:[/] Vídeo não encontrado!")
+    elif not subtitle_file:
+        console.print("[bold yellow]ℹ️ Info:[/] Nenhuma legenda encontrada. Será adicionada apenas a logo.")
 
     return video_file, subtitle_file
 
@@ -177,20 +179,21 @@ def get_appropriate_logo(height, assets_dir=None):
 
 def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
     """
-    Queima a legenda e a logo no vídeo usando FFmpeg.
+    Queima a legenda (se existir) e a logo no vídeo usando FFmpeg.
     """
     # Localizar arquivos
     video_file, subtitle_file = find_video_and_subtitle(input_folder)
-    if not video_file or not subtitle_file:
+    if not video_file:
         console.print(
-            f"[bold red]❌ Erro:[/] Vídeo ou legenda não encontrados em {input_folder}"
+            f"[bold red]❌ Erro:[/] Vídeo não encontrado em {input_folder}"
         )
         return False
 
     # Configurar output
     output_folder = Path(output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
-    output_name = f"{video_file.stem}_legendado{video_file.suffix}"
+    output_suffix = "_legendado" if subtitle_file else "_logo"
+    output_name = f"{video_file.stem}{output_suffix}{video_file.suffix}"
     output_path = output_folder / output_name
 
     # Verificar resolução para logo apropriada
@@ -220,26 +223,49 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
         )
         total_duration = 100
 
-    # Montar comando FFmpeg baseado no exemplo que funciona
-    command = [
-        "ffmpeg",
-        "-i",
-        f'"{video_file}"',  # Video input com aspas
-        "-i",
-        f'"{logo_file}"',   # Logo input com aspas
-        "-filter_complex",
-        "[0:v][1:v]overlay=W-w:0",  # Overlay exatamente como no exemplo
-        "-c:v",
-        "libx264",
-        "-preset",
-        "faster",
-        "-crf",
-        "18",
-        "-c:a",
-        "copy",
-        "-y",
-        f'"{output_path}"'  # Output com aspas
-    ]
+    # Montar comando FFmpeg baseado na presença ou não de legenda
+    if subtitle_file:
+        # Comando com legenda e logo
+        command = [
+            "ffmpeg",
+            "-i",
+            f'"{video_file}"',
+            "-i",
+            f'"{logo_file}"',
+            "-vf",
+            f"subtitles='{subtitle_file}',overlay=W-w:0",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "faster",
+            "-crf",
+            "18",
+            "-c:a",
+            "copy",
+            "-y",
+            f'"{output_path}"'
+        ]
+    else:
+        # Comando apenas com logo
+        command = [
+            "ffmpeg",
+            "-i",
+            f'"{video_file}"',
+            "-i",
+            f'"{logo_file}"',
+            "-filter_complex",
+            "[0:v][1:v]overlay=W-w:0",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "faster",
+            "-crf",
+            "18",
+            "-c:a",
+            "copy",
+            "-y",
+            f'"{output_path}"'
+        ]
 
     # Exibir comando
     command_str = " ".join(command)
@@ -256,7 +282,6 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
             console=console,
         )
 
-        # Usar shell=True para processar as aspas corretamente
         process = subprocess.Popen(
             command_str,
             stderr=subprocess.PIPE,
@@ -266,7 +291,11 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
         )
 
         with progress:
-            task = progress.add_task(f"[cyan]Processando {video_file.name}", total=100)
+            task = progress.add_task(
+                f"[cyan]Processando {video_file.name}" +
+                (" (legenda + logo)" if subtitle_file else " (apenas logo)"),
+                total=100
+            )
             last_percent = 0
 
             while process.poll() is None:
@@ -285,8 +314,9 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
                             last_percent = percent
 
         if process.returncode == 0:
+            success_msg = "Legenda e logo adicionadas" if subtitle_file else "Logo adicionada"
             console.print(
-                f"[bold green]✓ Legenda e logo adicionadas com sucesso:[/] {output_path}"
+                f"[bold green]✓ {success_msg} com sucesso:[/] {output_path}"
             )
             return True
         else:
