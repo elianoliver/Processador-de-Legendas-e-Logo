@@ -223,112 +223,165 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
         )
         total_duration = 100
 
-    # Montar comando FFmpeg baseado na presença ou não de legenda
-    if subtitle_file:
-        # Comando com legenda e logo
-        command = [
-            "ffmpeg",
-            "-i",
-            f'"{video_file}"',
-            "-i",
-            f'"{logo_file}"',
-            "-vf",
-            f"subtitles='{subtitle_file}',overlay=W-w:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "faster",
-            "-crf",
-            "18",
-            "-c:a",
-            "copy",
-            "-y",
-            f'"{output_path}"'
-        ]
-    else:
-        # Comando apenas com logo
-        command = [
-            "ffmpeg",
-            "-i",
-            f'"{video_file}"',
-            "-i",
-            f'"{logo_file}"',
-            "-filter_complex",
-            "[0:v][1:v]overlay=W-w:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "faster",
-            "-crf",
-            "18",
-            "-c:a",
-            "copy",
-            "-y",
-            f'"{output_path}"'
-        ]
-
-    # Exibir comando
-    command_str = " ".join(command)
-    syntax = Syntax(command_str, "bash", theme="monokai", word_wrap=True)
-    console.print(Panel(syntax, title="[bold]Comando FFmpeg", border_style="blue"))
+    # Salvar diretório atual
+    original_dir = os.getcwd()
 
     try:
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(complete_style="green", finished_style="green"),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
-            console=console,
-        )
+        # Mudar para o diretório do vídeo
+        os.chdir(video_file.parent)
 
-        process = subprocess.Popen(
-            command_str,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            universal_newlines=True,
-            shell=True
-        )
+        # Usar nomes de arquivo relativos
+        video_name = video_file.name
+        subtitle_name = subtitle_file.name if subtitle_file else None
+        logo_path = str(logo_file.absolute())  # Precisa ser caminho absoluto pois está em outro diretório
+        output_path_abs = str(output_path.absolute())
 
-        with progress:
-            task = progress.add_task(
-                f"[cyan]Processando {video_file.name}" +
-                (" (legenda + logo)" if subtitle_file else " (apenas logo)"),
-                total=100
-            )
-            last_percent = 0
+        # Montar comando FFmpeg baseado na presença ou não de legenda
+        if subtitle_file:
+            # Primeiro, adiciona a legenda
+            subtitle_command = [
+                "ffmpeg",
+                "-i",
+                video_name,
+                "-vf",
+                f"subtitles={subtitle_name}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "faster",
+                "-crf",
+                "18",
+                "-c:a",
+                "copy",
+                "temp_with_subs.mp4"
+            ]
 
-            while process.poll() is None:
-                line = process.stderr.readline()
-                if line:
-                    if "Error" in line or "Invalid" in line:
-                        console.print(f"[yellow]⚠️ FFmpeg:[/] {line.strip()}")
-
-                    time_match = re.search(r"time=(\d{2}:\d{2}):(\d{2}\.\d{2})", line)
-                    if time_match:
-                        current_time = parse_time(time_match.group(0))
-                        percent = min(int((current_time / total_duration) * 100), 100)
-
-                        if percent > last_percent:
-                            progress.update(task, completed=percent)
-                            last_percent = percent
-
-        if process.returncode == 0:
-            success_msg = "Legenda e logo adicionadas" if subtitle_file else "Logo adicionada"
-            console.print(
-                f"[bold green]✓ {success_msg} com sucesso:[/] {output_path}"
-            )
-            return True
+            # Depois, adiciona a logo
+            logo_command = [
+                "ffmpeg",
+                "-i",
+                "temp_with_subs.mp4",
+                "-i",
+                logo_path,
+                "-filter_complex",
+                "[0:v][1:v]overlay=W-w:0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "faster",
+                "-crf",
+                "18",
+                "-c:a",
+                "copy",
+                "-y",
+                output_path_abs
+            ]
         else:
-            stderr_output = process.stderr.read() if process.stderr else "Sem detalhes do erro"
-            console.print("[bold red]❌ Erro ao processar o vídeo.[/]")
-            console.print(Panel(stderr_output, title="Erro FFmpeg", border_style="red"))
+            # Comando apenas com logo
+            logo_command = [
+                "ffmpeg",
+                "-i",
+                video_name,
+                "-i",
+                logo_path,
+                "-filter_complex",
+                "[0:v][1:v]overlay=W-w:0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "faster",
+                "-crf",
+                "18",
+                "-c:a",
+                "copy",
+                "-y",
+                output_path_abs
+            ]
+
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]{task.description}"),
+                BarColumn(complete_style="green", finished_style="green"),
+                TaskProgressColumn(),
+                TimeRemainingColumn(),
+                console=console,
+            ) as progress:
+                task = progress.add_task(
+                    f"[cyan]Processando {video_file.name}" +
+                    (" (legenda + logo)" if subtitle_file else " (apenas logo)"),
+                    total=100
+                )
+
+                if subtitle_file:
+                    # Primeiro processo: adicionar legendas
+                    process = subprocess.Popen(
+                        subtitle_command,
+                        stderr=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        universal_newlines=True
+                    )
+
+                    # Monitorar progresso
+                    while process.poll() is None:
+                        line = process.stderr.readline()
+                        if line:
+                            if "Error" in line or "Invalid" in line:
+                                console.print(f"[yellow]⚠️ FFmpeg:[/] {line.strip()}")
+
+                            time_match = re.search(r"time=(\d{2}:\d{2}):(\d{2}\.\d{2})", line)
+                            if time_match:
+                                current_time = parse_time(time_match.group(0))
+                                percent = min(int((current_time / total_duration) * 50), 50)  # Primeira metade do progresso
+                                progress.update(task, completed=percent)
+
+                    if process.returncode != 0:
+                        raise RuntimeError("Falha ao adicionar legendas")
+
+                # Processo final: adicionar logo
+                process = subprocess.Popen(
+                    logo_command,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    universal_newlines=True
+                )
+
+                # Monitorar progresso
+                start_percent = 50 if subtitle_file else 0
+                while process.poll() is None:
+                    line = process.stderr.readline()
+                    if line:
+                        if "Error" in line or "Invalid" in line:
+                            console.print(f"[yellow]⚠️ FFmpeg:[/] {line.strip()}")
+
+                        time_match = re.search(r"time=(\d{2}:\d{2}):(\d{2}\.\d{2})", line)
+                        if time_match:
+                            current_time = parse_time(time_match.group(0))
+                            percent = min(int((current_time / total_duration) * 50), 50)  # Segunda metade do progresso
+                            progress.update(task, completed=start_percent + percent)
+
+                if process.returncode == 0:
+                    success_msg = "Legenda e logo adicionadas" if subtitle_file else "Logo adicionada"
+                    console.print(
+                        f"[bold green]✓ {success_msg} com sucesso:[/] {output_path}"
+                    )
+                    return True
+                else:
+                    raise RuntimeError("Falha ao adicionar logo")
+
+        except Exception as e:
+            console.print(f"[bold red]❌ Erro ao processar o vídeo:[/] {str(e)}")
             return False
 
-    except Exception as e:
-        console.print(f"[bold red]❌ Erro ao processar {video_file}:[/] {str(e)}")
-        return False
+        finally:
+            # Limpar arquivo temporário se existir
+            if subtitle_file and os.path.exists("temp_with_subs.mp4"):
+                os.remove("temp_with_subs.mp4")
 
+    finally:
+        # Restaurar diretório original
+        os.chdir(original_dir)
+        
 # 6. Função de Processamento em Lote
 def process_all_folders(base_folder, output_base):
     """
