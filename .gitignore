@@ -31,7 +31,7 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+.pytest_cache
 
 # Ambientes virtuais
 .env
@@ -57,7 +57,6 @@ tmp/
 Thumbs.db
 
 # Exceções - arquivos que devem ser mantidos
-!assets/720 overlay.png
-!assets/1080 overlay.png
+!assets/*
 !input/
 !output/
