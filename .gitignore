@@ -1,6 +1,3 @@
-# Arquivos de saída do processamento
-output/
-
 # Arquivos de vídeo e legendas
 *.mp4
 *.mkv
@@ -55,6 +52,10 @@ temp/
 tmp/
 .DS_Store
 Thumbs.db
+
+# Ignorar conteúdo das pastas input e output
+input/*
+output/*
 
 # Exceções - arquivos que devem ser mantidos
 !assets/*
