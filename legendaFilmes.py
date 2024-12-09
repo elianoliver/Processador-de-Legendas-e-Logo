@@ -153,26 +153,29 @@ def create_ffmpeg_command(video_file, subtitle_file, logo_file, output_path, vid
     """
     Cria o comando FFmpeg unificado para processamento.
     """
+    # Usa apenas o nome do arquivo da legenda, já que vamos mudar para o diretório dela
+    subtitle_filename = subtitle_file.name if subtitle_file else None
+
     if subtitle_file:
         # Comando combinado com legenda e logo em um único passo
         return [
             "ffmpeg",
-            "-i", video_file,
-            "-i", logo_file,
+            "-i", str(video_file),
+            "-i", str(logo_file),
             "-filter_complex",
-            f"subtitles={subtitle_file},overlay=W-w:0",
+            f"subtitles='{subtitle_filename}',overlay=W-w:0",
         ] + video_options + audio_options + [
-            "-y", output_path
+            "-y", str(output_path)
         ]
     else:
         # Comando apenas com logo
         return [
             "ffmpeg",
-            "-i", video_file,
-            "-i", logo_file,
+            "-i", str(video_file),
+            "-i", str(logo_file),
             "-filter_complex", "overlay=W-w:0",
         ] + video_options + audio_options + [
-            "-y", output_path
+            "-y", str(output_path)
         ]
 
 def should_process_video(video_path, output_folder):
@@ -315,13 +318,16 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
 
     # Criar comando FFmpeg unificado
     command = create_ffmpeg_command(
-        str(video_file),
-        str(subtitle_file) if subtitle_file else None,
-        str(logo_file),
-        str(output_path),
+        video_file,
+        subtitle_file,
+        logo_file,
+        output_path,
         video_options,
         audio_options
     )
+
+    # Salvar o diretório atual
+    original_dir = os.getcwd()
 
     # Processar vídeo
     try:
@@ -338,6 +344,9 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
                 total=100
             )
 
+            # Mudar para o diretório do vídeo/legenda antes de executar o FFmpeg
+            os.chdir(video_file.parent)
+
             process = subprocess.Popen(
                 command,
                 stderr=subprocess.PIPE,
@@ -345,8 +354,9 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
                 universal_newlines=True
             )
 
-            if not process_video(progress, task, process, total_duration, start_percent=0, end_percent=100):
-                raise RuntimeError("Falha ao processar o vídeo")
+            if not process_video(progress, task, process, total_duration):
+                console.print("[bold red]❌ Erro:[/] Falha ao processar o vídeo")
+                return False
 
             # Calcular e mostrar redução de tamanho
             input_size = os.path.getsize(video_file)
@@ -362,6 +372,9 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
     except Exception as e:
         console.print(f"[bold red]❌ Erro ao processar o vídeo:[/] {str(e)}")
         return False
+    finally:
+        # Restaurar o diretório original
+        os.chdir(original_dir)
 
 def process_all_folders(base_folder, output_base):
     """
