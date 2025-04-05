@@ -51,7 +51,7 @@ def process_video(progress, task, process, total_duration, start_percent=0, end_
 
 def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
     """
-    Função principal otimizada para processar o vídeo.
+    Função principal otimizada para processar o vídeo em duas etapas separadas.
 
     Args:
         input_folder: Pasta contendo o vídeo e legenda
@@ -68,8 +68,10 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
     # Configurar output
     output_folder = Path(output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
-    output_suffix = "_legendado" if subtitle_file else "_logo"
-    output_path = output_folder / f"{video_file.stem}{output_suffix}.mp4"
+
+    # Cria um arquivo intermediário para a etapa de legendas
+    temp_output_path = output_folder / f"{video_file.stem}_legendado_temp.mp4"
+    final_output_path = output_folder / f"{video_file.stem}_completo.mp4"
 
     # Obter metadados do vídeo
     metadata = get_video_metadata(video_file)
@@ -108,20 +110,9 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
         "-c:a", "copy"
     ]
 
-    # Criar comando FFmpeg unificado
-    command = create_ffmpeg_command(
-        video_file,
-        subtitle_file,
-        logo_file,
-        output_path,
-        video_options,
-        audio_options
-    )
-
     # Salvar o diretório atual
     original_dir = os.getcwd()
 
-    # Processar vídeo
     try:
         with Progress(
             SpinnerColumn(),
@@ -131,32 +122,79 @@ def burn_subtitle_and_logo(input_folder, output_folder, assets_dir=None):
             TimeRemainingColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task(
-                f"[cyan]Processando {video_file.name}",
-                total=100
-            )
-
             # Mudar para o diretório do vídeo/legenda antes de executar o FFmpeg
             os.chdir(video_file.parent)
 
-            process = subprocess.Popen(
-                command,
+            # ETAPA 1: Adicionar legendas
+            if subtitle_file:
+                task1 = progress.add_task(
+                    f"[cyan]Etapa 1/2: Adicionando legendas ao vídeo",
+                    total=100
+                )
+
+                subtitle_command = [
+                    "ffmpeg",
+                    "-i", str(video_file),
+                    "-vf", f"subtitles='{subtitle_file.name}'",
+                ] + video_options + audio_options + [
+                    "-y", str(temp_output_path)
+                ]
+
+                process1 = subprocess.Popen(
+                    subtitle_command,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    universal_newlines=True
+                )
+
+                if not process_video(progress, task1, process1, total_duration):
+                    console.print("[bold red]❌ Erro:[/] Falha ao adicionar legendas ao vídeo")
+                    return False
+
+                input_for_logo = temp_output_path
+            else:
+                input_for_logo = video_file
+
+            # ETAPA 2: Adicionar logo
+            task2 = progress.add_task(
+                f"[cyan]Etapa 2/2: Adicionando logo ao vídeo",
+                total=100
+            )
+
+            logo_command = [
+                "ffmpeg",
+                "-i", str(input_for_logo),
+                "-i", str(logo_file),
+                "-filter_complex", "overlay=W-w:0",
+            ] + video_options + audio_options + [
+                "-y", str(final_output_path)
+            ]
+
+            process2 = subprocess.Popen(
+                logo_command,
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 universal_newlines=True
             )
 
-            if not process_video(progress, task, process, total_duration):
-                console.print("[bold red]❌ Erro:[/] Falha ao processar o vídeo")
+            if not process_video(progress, task2, process2, total_duration):
+                console.print("[bold red]❌ Erro:[/] Falha ao adicionar logo ao vídeo")
                 return False
+
+            # Remover arquivo temporário se existir
+            if subtitle_file and temp_output_path.exists():
+                try:
+                    temp_output_path.unlink()
+                except:
+                    console.print("[yellow]⚠️ Não foi possível remover o arquivo temporário")
 
             # Calcular e mostrar redução de tamanho
             input_size = os.path.getsize(video_file)
-            output_size = os.path.getsize(output_path)
+            output_size = os.path.getsize(final_output_path)
             reduction = ((input_size - output_size) / input_size) * 100
 
             console.print(
-                f"[bold green]✓ Processamento concluído com sucesso:[/] {output_path}\n"
+                f"[bold green]✓ Processamento concluído com sucesso:[/] {final_output_path}\n"
                 f"[bold blue]📊 Redução de tamanho:[/] {reduction:.1f}%"
             )
             return True
