@@ -10,7 +10,8 @@ Um script Python robusto para adicionar legendas e logos permanentemente em víd
 - 📊 Barra de progresso em tempo real
 - 🔄 Processamento em lote de múltiplas pastas
 - 🎨 Logo adaptativa baseada na resolução do vídeo
-- ⚡ Otimizado para qualidade e desempenho
+- ⚡ Otimizado para eficiência de memória e desempenho
+- 🔧 Processamento em duas etapas para evitar problemas de memória
 
 ## 🛠️ Pré-requisitos
 
@@ -35,29 +36,40 @@ Um script Python robusto para adicionar legendas e logos permanentemente em víd
 
 ## 🚀 Uso
 
-1. Organize seus vídeos em pastas individuais com suas respectivas legendas
-2. Coloque os arquivos de logo (`720 overlay.png` e `1080 overlay.png`) no mesmo diretório do script
-3. Ajuste as pastas de entrada e saída no script:
-   ```python
-   base_folder = "C:/caminho/para/pasta/entrada"
-   output_base = "C:/caminho/para/pasta/saida"
-   ```
-4. Execute o script:
+1. Coloque seus vídeos e legendas na pasta `input` em subpastas próprias
+2. Os arquivos de logo (`720 overlay.png` e `1080 overlay.png`) devem estar na pasta `assets`
+3. Execute o script:
    ```bash
-   python video_processor.py
+   python legendaFilmes.py
    ```
+4. Os vídeos processados serão salvos na pasta `output` mantendo a mesma estrutura de pastas
 
-## 📁 Estrutura de Arquivos Esperada
+## 📁 Estrutura de Arquivos
 
 ```
-pasta_base/
-├── filme1/
-│   ├── video.mp4
-│   └── legenda.srt
-├── filme2/
-│   ├── video.mkv
-│   └── legenda.srt
-└── ...
+Processador-de-Legendas-e-Logo/
+├── input/
+│   ├── Filme1/
+│   │   ├── video.mp4
+│   │   └── legenda.srt
+│   └── Filme2/
+│       ├── video.mkv
+│       └── legenda.srt
+├── output/
+│   └── (vídeos processados)
+├── assets/
+│   ├── 720 overlay.png
+│   └── 1080 overlay.png
+├── modules/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── file_utils.py
+│   ├── ffmpeg_utils.py
+│   ├── processor.py
+│   ├── subtitle_utils.py
+│   ├── time_utils.py
+│   └── video_analysis.py
+└── legendaFilmes.py
 ```
 
 ## 🎯 Formatos Suportados
@@ -66,13 +78,31 @@ pasta_base/
 - **Legendas**: .srt, .ass, .ssa
 - **Logos**: .png (720p e 1080p)
 
-## ⚙️ Configurações do FFmpeg
+## ⚙️ Processamento em Duas Etapas
 
-O script utiliza as seguintes configurações para processamento:
+Para otimizar o uso de memória, o script agora processa os vídeos em duas etapas separadas:
+
+1. **Etapa 1**: Adição de legendas ao vídeo original
+   - Cria um arquivo temporário intermediário com as legendas embutidas
+
+2. **Etapa 2**: Adição da logo ao vídeo com legendas
+   - Processa o arquivo intermediário para adicionar a logo
+   - Gera o arquivo final com legendas e logo
+
+3. **Limpeza**: Remove o arquivo temporário intermediário automaticamente
+
+Este método evita problemas de memória que podem ocorrer ao processar vídeos grandes.
+
+## ⚙️ Configurações de Codificação
+
+O script utiliza configurações otimizadas para o FFmpeg:
 - Codec de vídeo: libx264
-- Preset: faster
-- CRF: 18
-- Áudio: cópia direta do original
+- Preset: medium
+- CRF: 26
+- Tune: film
+- Profile: high
+- Movflags: +faststart
+- Áudio: cópia direta do original (sem recodificação)
 
 ## 🔍 Funcionalidades Detalhadas
 
@@ -81,13 +111,14 @@ O script utiliza as seguintes configurações para processamento:
 - **Interface Rica**: Usa tabelas coloridas e painéis informativos para melhor visualização
 - **Monitoramento de Progresso**: Exibe barra de progresso com tempo estimado
 - **Tratamento de Erros**: Manipulação robusta de erros com mensagens claras
+- **Otimização de Memória**: Processamento em etapas para vídeos de grande porte
 
 ## ⚠️ Observações Importantes
 
 1. O script não sobrescreve arquivos existentes de mesmo tamanho
 2. As logos devem estar nomeadas como "720 overlay.png" e "1080 overlay.png"
 3. O processo pode ser interrompido com Ctrl+C
-4. É necessário ter permissões de leitura/escrita nas pastas
+4. O processamento em duas etapas é mais lento, mas usa menos memória
 
 ## 🐛 Resolução de Problemas
 
@@ -95,8 +126,9 @@ Se encontrar problemas:
 
 1. Verifique se o FFmpeg está instalado corretamente
 2. Confirme as permissões das pastas
-3. Verifique se os arquivos de logo existem
-4. Certifique-se de que os formatos dos arquivos são suportados
+3. Verifique se os arquivos de logo existem na pasta `assets`
+4. Para problemas de memória, verifique se o processamento em duas etapas está funcionando corretamente
+5. Certifique-se de que os formatos dos arquivos são suportados
 
 ## 🤝 Contribuindo
 
